@@ -1,13 +1,29 @@
 -- 1. What is the total amount each customer spent at the restaurant?
-SELECT s.customer_id, 
-		SUM(m.price) AS Total_Amount
+SELECT s.customer_id,
+       SUM(m.price) AS Total_Amount
 FROM sales s
-JOIN menu m on s.product_id = m.product_id
-GROUP BY s.customer_id 
+JOIN menu m ON s.product_id = m.product_id
+GROUP BY s.customer_id
 ORDER BY s.customer_id;
 
 -- 2. How many days has each customer visited the restaurant?
 SELECT s.customer_id,
-		COUNT(DISTINCT s.order_date) AS 'Days'
+       COUNT(DISTINCT s.order_date) AS 'Days'
 FROM sales s
 GROUP BY s.customer_id;
+
+-- 3. What was the first item from the menu purchased by each customer?
+WITH ordered_sales AS
+  (SELECT s.customer_id,
+          s.order_date,
+          m.product_name,
+          DENSE_RANK () OVER (PARTITION BY s.customer_id
+                              ORDER BY s.order_date) AS Rankk
+   FROM Sales s
+   JOIN menu m ON s.product_id = m.product_id)
+SELECT customer_id,
+       product_name
+FROM ordered_sales
+WHERE Rankk = 1
+GROUP BY customer_id,
+         product_name
