@@ -1,0 +1,65 @@
+Each customer’s onboarding journey.
+SELECT s.customer_id,
+       p.plan_id,
+       p.plan_name,
+       s.start_date
+FROM foodie_fi.plans p
+JOIN foodie_fi.subscriptions s ON p.plan_id = s.plan_id
+WHERE s.customer_id IN (1, 2, 11, 13, 15, 16, 18, 19)
+ORDER BY s.customer_id;
+
+1. --How many customers has Foodie-Fi ever had?
+SELECT COUNT (DISTINCT customer_id) AS Total_Customers
+FROM foodie_fi.subscriptions;
+
+2. --What is the monthly distribution of trial plan start_date values for our dataset - use the start of the month as the group by value
+SELECT Date_part('month', start_date) AS MONTH,
+       COUNT (s.plan_id) AS Total
+FROM foodie_fi.subscriptions s
+WHERE s.plan_id = 0
+GROUP BY Date_part('month', start_date);
+
+3. --What plan start_date values occur after the year 2020 for our dataset? Show the breakdown by count of events for each plan_name.
+SELECT p.plan_id,
+       p.plan_name,
+       COUNT(s.plan_id) AS Total_Event
+FROM foodie_fi.subscriptions s
+JOIN foodie_fi.plans p ON s.plan_id = p.plan_id
+WHERE s.start_date >= '2021-01-01'
+GROUP BY p.plan_id,
+         p.plan_name
+ORDER BY p.plan_id,
+         p.plan_name;
+
+4. --What is the customer count and percentage of customers who have churned rounded to 1 decimal place?
+SELECT COUNT(s.customer_id) AS churn_mem,
+       ROUND(100.0 * COUNT(s.customer_id)/
+               (SELECT COUNT (DISTINCT customer_id)
+                FROM foodie_fi.subscriptions), 1) AS Churned_rounded
+FROM foodie_fi.subscriptions s
+JOIN foodie_fi.plans p ON s.plan_id = p.plan_id
+WHERE p.plan_id = 4;
+
+5. --How many customers have churned straight after their initial free trial - what percentage is this rounded to the nearest whole number?
+WITH rank AS
+  (SELECT s.customer_id,
+          p.plan_id,
+          ROW_NUMBER() OVER (PARTITION BY s.customer_id
+                             ORDER BY s.start_date) AS row_num
+   FROM foodie_fi.subscriptions AS s
+   JOIN foodie_fi.plans p ON s.plan_id = p.plan_id)
+SELECT COUNT(CASE
+                 WHEN row_num = 2
+                      AND p.plan_name = 'churn' THEN 1
+                 ELSE 0
+             END) AS churned_customers,
+       ROUND(100.0 * COUNT(CASE
+                               WHEN row_num = 2
+                                    AND p.plan_name = 'churn' THEN 1
+                               ELSE 0
+                           END) /
+               (SELECT COUNT(DISTINCT customer_id)
+                FROM foodie_fi.subscriptions) , 1) AS churn_percent
+FROM rank
+WHERE plan_id = 4
+  AND row_num = 2;
