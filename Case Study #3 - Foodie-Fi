@@ -63,3 +63,45 @@ SELECT COUNT(CASE
 FROM rank
 WHERE plan_id = 4
   AND row_num = 2;
+
+6. What is the number and percentage of customer plans after their initial free trial?
+WITH next_plan AS
+  (SELECT customer_id,
+          plan_id,
+          LEAD(plan_id) OVER (PARTITION BY customer_id
+                              ORDER BY plan_id)AS next_plan_id
+   FROM foodie_fi.subscriptions)
+SELECT next_plan_id AS plan_id,
+       COUNT(customer_id) AS converted_customers,
+       ROUND(100.0 * COUNT(customer_id):: NUMERIC /
+               (SELECT COUNT(DISTINCT customer_id)
+                FROM foodie_fi.subscriptions), 1) AS conversion_percentage
+FROM next_plan
+WHERE next_plan IS NOT NULL
+  AND plan_id = 0
+  AND next_plan_id != 4
+GROUP BY next_plan_id;
+
+7. What is the customer count and percentage breakdown of all 5 plan_name values at 2020-12-31?
+WITH next_days AS
+  (SELECT customer_id,
+          plan_id,
+          lead(start_date) OVER (PARTITION BY customer_id
+                                 ORDER BY start_date) AS next_days
+   FROM foodie_fi.subscriptions
+   WHERE start_date <= '2020-12-31')
+SELECT plan_id,
+       count(DISTINCT customer_id) AS customer,
+       round (100.0 *count(DISTINCT customer_id) /
+                (SELECT count(DISTINCT customer_id)
+                 FROM foodie_fi.subscriptions), 1) AS percentage
+FROM next_days
+WHERE next_days IS NOT NULL
+GROUP BY plan_id;
+
+8. How many customers have upgraded to an annual plan in 2020?
+SELECT COUNT (DISTINCT customer_id) AS Total_customer
+FROM foodie_fi.subscriptions
+WHERE plan_id = 3
+  AND start_date >= '2020-01-01'
+  AND start_date <= '2020-12-31';
