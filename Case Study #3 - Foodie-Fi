@@ -105,3 +105,72 @@ FROM foodie_fi.subscriptions
 WHERE plan_id = 3
   AND start_date >= '2020-01-01'
   AND start_date <= '2020-12-31';
+ 
+9. How many days on average does it take for a customer to upgrade to an annual plan from the day they join Foodie-Fi?
+WITH trial AS
+  (SELECT customer_id,
+          start_date AS trial_date
+   FROM foodie_fi.subscriptions
+   WHERE plan_id = 0),
+     annual AS
+  (SELECT customer_id,
+          start_date AS annual_date
+   FROM foodie_fi.subscriptions
+   WHERE plan_id = 3)
+SELECT round(avg(annual_date - trial_date), 0) AS AVG_Update
+FROM trial t
+JOIN annual a ON t.customer_id = a.customer_id;
+
+10. Can you further breakdown this average value into 30 day periods (i.e. 0-30 days, 31-60 days etc)
+WITH trial AS
+  (SELECT customer_id,
+          start_date AS trial_date
+   FROM foodie_fi.subscriptions
+   WHERE plan_id = 0),
+     annual AS
+  (SELECT customer_id,
+          start_date AS annual_date
+   FROM foodie_fi.subscriptions
+   WHERE plan_id = 3),
+     Cus AS
+  (SELECT width_bucket(a.annual_date - t.trial_date, 0, 365, 12) AS avg_update
+   FROM trial t
+   JOIN annual a ON t.customer_id = a.customer_id)
+SELECT ((avg_update - 1) * 30 || ' - ' || avg_update * 30 || ' days') AS bucket,
+       COUNT (*) AS total_customer
+FROM cus
+GROUP BY avg_update;
+
+11. How many customers downgraded from a pro monthly to a basic monthly plan in 2020?
+
+1/WITH ranks AS
+  (SELECT s.plan_id,
+          p.plan_name customer_id,
+          lead(s.plan_id) over(PARTITION BY customer_id
+                               ORDER BY start_date) AS next_plan
+   FROM foodie_fi.subscriptions s
+   JOIN foodie_fi.plans p ON s.plan_id = p.plan_id
+   WHERE date_part ('year', start_date) = 2020 )
+SELECT count(DISTINCT customer_id) AS Total
+FROM ranks
+WHERE plan_id = 2
+  AND next_plan = 1;
+
+2/ WITH pro_mo AS
+  (SELECT customer_id,
+          start_date AS proday
+   FROM foodie_fi.subscriptions
+   WHERE plan_id = 2 ),
+     ba_mo AS
+  (SELECT customer_id,
+          start_date AS baday
+   FROM foodie_fi.subscriptions
+   WHERE plan_id = 1 )
+SELECT COUNT(DISTINCT p.customer_id) AS total_downgrades
+FROM pro_mo p
+JOIN ba_mo b ON p.customer_id = b.customer_id
+WHERE p.proday < b.baday
+  AND b.baday BETWEEN '2020-01-01' AND '2020-12-31';
+
+
+
