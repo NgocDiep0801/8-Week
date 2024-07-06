@@ -276,3 +276,53 @@ SELECT runner_id,
                         END)/ COUNT (*),2) AS precent
 FROM runner_orders_temp
 GROUP BY runner_id;
+
+-- C. Ingredient Optimisation
+-- 1. What are the standard ingredients for each pizza?
+WITH Toppings AS (
+    SELECT 
+      pr.pizza_id, 
+      pt.topping_name
+    FROM pizza_recipes pr
+    CROSS APPLY STRING_SPLIT(pr.toppings, ',') AS toppings_split
+    JOIN pizza_toppings pt ON pt.topping_id = toppings_split.value
+)
+SELECT 
+  pizza_id, 
+  STRING_AGG(topping_name, ', ') WITHIN GROUP(ORDER BY topping_name) AS toppings
+FROM Toppings
+GROUP BY pizza_id
+
+-- 2. What was the most commonly added extra? 
+WITH Toppings AS (
+    SELECT
+      pizza_id,
+      value AS topping_id
+    FROM pizza_recipes
+    CROSS APPLY STRING_SPLIT(toppings, ',')
+)
+SELECT 
+  t.topping_id, 
+  pt.topping_name, 
+  COUNT(t.topping_id) AS topping_count
+from Toppings t 
+JOIN pizza_toppings pt ON t.topping_id = pt.topping_id
+GROUP BY t.topping_id, pt.topping_name
+ORDER BY topping_count DESC;
+
+-- 3. What was the most common exclusion?
+WITH exclusions_topping AS (
+    SELECT
+  		value AS topping_id
+    FROM customer_orders_temp
+    CROSS APPLY STRING_SPLIT(exclusions, ',')
+    WHERE exclusions IS NOT NULL AND exclusions != ''
+)
+SELECT 
+	et.topping_id,
+    pt.topping_name,
+    COUNT(et.topping_id) AS the_most_common_exclusion
+FROM exclusions_topping AS et
+JOIN pizza_toppings pt ON et.topping_id = pt.topping_id
+GROUP BY et.topping_id, pt.topping_name
+ORDER BY the_most_common_exclusion DESC;
