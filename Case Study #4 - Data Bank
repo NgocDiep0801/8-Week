@@ -1,0 +1,64 @@
+A. Customer Nodes Exploration
+1. How many unique nodes are there on the Data Bank system?
+SELECT COUNT(DISTINCT node_id)
+FROM data_bank.customer_nodes;
+
+2. What is the number of nodes per region?
+SELECT
+  r.region_name, 
+  COUNT(DISTINCT cn.node_id) AS node_count
+FROM data_bank.regions r
+JOIN data_bank.customer_nodes AS cn
+  ON r.region_id = cn.region_id
+GROUP BY r.region_name;
+
+3. How many customers are allocated to each region?
+SELECT r.region_name,
+       count(c.customer_id) AS count_cus
+FROM data_bank.customer_nodes c
+JOIN data_bank.regions r ON c.region_id = r.region_id
+GROUP BY r.region_name
+ORDER BY count_cus;
+
+4. How many days on average are customers reallocated to a different node?
+WITH node_days AS (
+  SELECT 
+    customer_id, 
+    node_id,
+    end_date - start_date AS days_in_node
+  FROM data_bank.customer_nodes
+  WHERE end_date != '9999-12-31'
+  GROUP BY customer_id, node_id, start_date, end_date
+) 
+, total_node_days AS (
+  SELECT 
+    customer_id,
+    node_id,
+    SUM(days_in_node) AS total_days_in_node
+  FROM node_days
+  GROUP BY customer_id, node_id
+)
+
+SELECT ROUND(AVG(total_days_in_node)) AS avg_node_reallocation_days
+FROM total_node_days;
+
+B. Customer Transactions
+1. What is the unique count and total amount for each transaction type?
+SELECT txn_type,
+       count(DISTINCT customer_id) AS transactions,
+       sum(txn_amount) AS SUM
+FROM data_bank.customer_transactions c
+GROUP BY txn_type;
+
+2. What is the average total historical deposit counts and amounts for all customers?
+
+WITH cte AS
+  (SELECT customer_id,
+          COUNT (customer_id) AS avg_count,
+                avg(txn_amount) AS avg_amount
+   FROM data_bank.customer_transactions
+   WHERE txn_type = 'deposit'
+   GROUP BY customer_id)
+SELECT round (avg(avg_amount)) AS avg_amount_des,
+       round (avg(avg_count)) AS avg_count_des
+FROM cte;
