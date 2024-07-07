@@ -279,50 +279,29 @@ GROUP BY runner_id;
 
 -- C. Ingredient Optimisation
 -- 1. What are the standard ingredients for each pizza?
-WITH Toppings AS (
-    SELECT 
-      pr.pizza_id, 
-      pt.topping_name
-    FROM pizza_recipes pr
-    CROSS APPLY STRING_SPLIT(pr.toppings, ',') AS toppings_split
-    JOIN pizza_toppings pt ON pt.topping_id = toppings_split.value
-)
-SELECT 
-  pizza_id, 
-  STRING_AGG(topping_name, ', ') WITHIN GROUP(ORDER BY topping_name) AS toppings
-FROM Toppings
-GROUP BY pizza_id
+SELECT r.pizza_id,
+       STRING_AGG(topping_name, ',') AS topping_List
+FROM pizza_recipes r CROSS apply string_split (toppings, ',') AS Topping
+JOIN pizza_toppings t ON Topping.value = t.topping_id
+GROUP BY r.pizza_id;
 
 -- 2. What was the most commonly added extra? 
-WITH Toppings AS (
-    SELECT
-      pizza_id,
-      value AS topping_id
-    FROM pizza_recipes
-    CROSS APPLY STRING_SPLIT(toppings, ',')
-)
-SELECT 
-  t.topping_id, 
-  pt.topping_name, 
-  COUNT(t.topping_id) AS topping_count
-from Toppings t 
-JOIN pizza_toppings pt ON t.topping_id = pt.topping_id
-GROUP BY t.topping_id, pt.topping_name
-ORDER BY topping_count DESC;
+SELECT top 1 t.topping_id,
+           t.topping_name,
+           count(*) AS topping_count
+FROM pizza_recipes r CROSS apply string_split (toppings, ',') AS Topping
+JOIN pizza_toppings t ON Topping.value = t.topping_id
+GROUP BY topping.value,
+         t.topping_name,
+         t.topping_id
+ORDER BY topping_count DESC ;
 
 -- 3. What was the most common exclusion?
-WITH exclusions_topping AS (
-    SELECT
-  		value AS topping_id
-    FROM customer_orders_temp
-    CROSS APPLY STRING_SPLIT(exclusions, ',')
-    WHERE exclusions IS NOT NULL AND exclusions != ''
-)
-SELECT 
-	et.topping_id,
-    pt.topping_name,
-    COUNT(et.topping_id) AS the_most_common_exclusion
-FROM exclusions_topping AS et
-JOIN pizza_toppings pt ON et.topping_id = pt.topping_id
-GROUP BY et.topping_id, pt.topping_name
-ORDER BY the_most_common_exclusion DESC;
+SELECT top 1 t.topping_id,
+           t.topping_name,
+           count(*) AS topping_count
+FROM pizza_recipes r CROSS apply string_split (toppings, ',') AS Topping
+JOIN pizza_toppings t ON Topping.value = t.topping_id
+GROUP BY t.topping_id,
+         t.topping_name
+ORDER BY topping_count ASC ;
