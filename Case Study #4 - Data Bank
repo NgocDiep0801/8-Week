@@ -68,8 +68,8 @@ WITH monthly_transactions AS (
   SELECT 
     customer_id, 
     DATE_PART('month', txn_date) AS mth,
-    SUM(CASE WHEN txn_type = 'deposit' THEN 0 ELSE 1 END) AS deposit_count,
-    SUM(CASE WHEN txn_type = 'purchase' THEN 0 ELSE 1 END) AS purchase_count,
+    SUM(CASE WHEN txn_type = 'deposit' THEN 1 ELSE 0 END) AS deposit_count,
+    SUM(CASE WHEN txn_type = 'purchase' THEN 1 ELSE 0 END) AS purchase_count,
     SUM(CASE WHEN txn_type = 'withdrawal' THEN 1 ELSE 0 END) AS withdrawal_count
   FROM data_bank.customer_transactions
   GROUP BY customer_id, DATE_PART('month', txn_date)
