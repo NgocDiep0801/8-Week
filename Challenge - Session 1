@@ -1,0 +1,100 @@
+1/ CREATE DATA
+CREATE TABLE color (
+    id INT PRIMARY KEY,
+    name NVARCHAR(50) NOT NULL,
+    extra_fee DECIMAL(10, 2) DEFAULT 0
+)
+CREATE TABLE customer (
+    id INT PRIMARY KEY,
+    first_name NVARCHAR(50) NOT NULL,
+    last_name NVARCHAR(50) NOT NULL,
+    favorite_color_id INT
+)
+CREATE TABLE category (
+    id INT PRIMARY KEY,
+    name NVARCHAR(50) NOT NULL,
+    parent_id INT
+)
+CREATE TABLE clothing (
+    id INT PRIMARY KEY,
+    name NVARCHAR(50) NOT NULL,
+    size NVARCHAR(10) CHECK (size IN ('S', 'M', 'L', 'XL', '2XL', '3XL')),
+    price DECIMAL(10, 2) NOT NULL,
+    color_id INT,
+    category_id INT
+)
+CREATE TABLE clothing_order (
+    id INT PRIMARY KEY,
+    customer_id INT,
+    clothing_id INT,
+    items INT NOT NULL,
+    order_date DATE NOT NULL
+)
+
+INSERT INTO color (id, name, extra_fee) VALUES 
+(1, 'Red', 0),
+(2, 'Blue', 0),
+(3, 'Green', 0.50),
+(4, 'Yellow', 0.25);
+
+INSERT INTO customer (id, first_name, last_name, favorite_color_id) VALUES 
+(1, 'John', 'Doe', 1),
+(2, 'Jane', 'Smith', 2),
+(3, 'Alice', 'Johnson', 3),
+(4, 'Bob', 'Lee', 4),
+(5, 'Eve', 'Brown', 1);
+
+INSERT INTO category (id, name, parent_id) VALUES 
+(1, 'Clothing', NULL),
+(2, 'Men', 1),
+(3, 'Women', 1),
+(4, 'Kids', 1);
+
+INSERT INTO clothing (id, name, size, price, color_id, category_id) VALUES 
+(1, 'T-Shirt', 'M', 15.00, 1, 2),
+(2, 'Jeans', 'L', 40.00, 2, 2),
+(3, 'Dress', 'S', 50.00, 3, 3),
+(4, 'Skirt', 'XL', 30.00, 4, 3),
+(5, 'Jacket', 'M', 60.00, 1, 2);
+
+INSERT INTO clothing_order (id, customer_id, clothing_id, items, order_date) VALUES 
+(1, 1, 1, 2, '2023-06-01'),
+(2, 2, 2, 1, '2023-06-02'),
+(3, 3, 3, 1, '2023-06-03'),
+(4, 4, 4, 1, '2023-06-04');
+2/
+WITH Favorite_color AS
+  (SELECT c.id,
+          c.favorite_color_id,
+          color.name
+   FROM customer c
+   JOIN color ON c.favorite_color_id = color.id)
+SELECT c.name AS clothes,
+       color.name,
+       cu.first_name,
+       cu.last_name,
+       fc.name
+FROM clothing c
+JOIN clothing_order co ON c.id = co.clothing_id
+JOIN customer cu ON co.customer_id = cu.id
+JOIN color ON c.color_id = color.id
+JOIN Favorite_color fc ON cu.id = fc.id
+ORDER BY fc.name ASC;
+
+3/
+SELECT cu.first_name,
+       cu.last_name,
+       color.name
+FROM customer cu
+LEFT JOIN clothing_order co ON cu.id = co.customer_id
+JOIN color ON cu.favorite_color_id = color.id
+WHERE co.customer_id IS NULL;
+4/
+WITH pa_na AS
+  (SELECT id,
+          name
+   FROM category ct)
+SELECT ct.name AS category,
+       pn.name AS subcategory
+FROM category ct
+LEFT JOIN pa_na pn ON ct.parent_id = pn.id
