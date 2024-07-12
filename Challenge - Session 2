@@ -1,0 +1,45 @@
+2/
+SELECT r.main_distance,
+       count(r.id) AS count_runner
+FROM runner r
+GROUP BY r.main_distance
+HAVING count(r.id) > 3 ;
+3/
+SELECT e.name,
+       COUNT (r.id) AS runner_count
+FROM runner_event re
+JOIN runner r ON re.runner_id = r.id
+JOIN event e ON re.event_id = e.id
+GROUP BY e.name;
+4/
+SELECT r.main_distance,
+       SUM (CASE
+                WHEN r.age < 20 THEN 1
+                ELSE 0
+            END) AS age_under_20,
+           SUM (CASE
+                    WHEN r.age >= 20
+                         AND r.age < 30 THEN 1
+                    ELSE 0
+                END) AS age_20_29,
+               SUM (CASE
+                        WHEN r.age >= 30
+                             AND r.age < 40 THEN 1
+                        ELSE 0
+                    END) AS age_30_39,
+                   SUM (CASE
+                            WHEN r.age >= 40
+                                 AND r.age < 50 THEN 1
+                            ELSE 0
+                        END) AS age_40_49,
+                       SUM (CASE
+                                WHEN r.age >= 50
+                                     AND r.age < 60 THEN 1
+                                ELSE 0
+                            END) AS age_50_59,
+                           SUM (CASE
+                                    WHEN r.age >= 60 THEN 1
+                                    ELSE 0
+                                END) AS age_over_50
+FROM runner r
+GROUP BY r.main_distance;
