@@ -1,0 +1,56 @@
+2/ 
+SELECT top 3 total_amount
+FROM orders
+ORDER BY total_amount DESC;
+3/
+WITH OrderedOrders AS (
+    SELECT
+        order_id,
+        customer_id,
+        total_amount,
+        order_date,
+        LAG(total_amount) OVER (PARTITION BY customer_id ORDER BY order_date) AS previous_value
+    FROM orders
+),
+OrderDeltas AS (
+    SELECT
+        order_id,
+        customer_id,
+        total_amount,
+        COALESCE(previous_value, 0) AS previous_value,
+        total_amount - COALESCE(previous_value, 0) AS delta
+    FROM OrderedOrders
+)
+
+SELECT
+    order_id,
+    customer_id,
+    total_amount,
+    previous_value,
+    delta
+FROM OrderDeltas
+ORDER BY customer_id;
+
+4/
+WITH CustomerOrders AS (
+    SELECT
+        o.customer_id,
+        c.full_name,
+        o.order_id,
+        o.order_date,
+        o.total_amount,
+        SUM(o.total_amount) OVER (PARTITION BY o.customer_id ORDER BY o.order_date) AS running_total
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.customer_id
+)
+
+SELECT
+    customer_id,
+    full_name,
+    order_id,
+    order_date,
+    total_amount,
+    running_total
+FROM CustomerOrders
+ORDER BY customer_id, order_date;
+	
