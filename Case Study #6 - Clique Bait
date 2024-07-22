@@ -1,0 +1,177 @@
+A. Digital Analysis
+1. How many users are there?
+SELECT 
+  COUNT(DISTINCT user_id) AS user_count
+FROM clique_bait.users;
+
+2. How many cookies does each user have on average?
+WITH cookie AS (
+  SELECT 
+    user_id, 
+    COUNT(cookie_id) AS cookie_id_count
+  FROM clique_bait.users
+  GROUP BY user_id)
+
+SELECT 
+  ROUND(AVG(cookie_id_count),0) AS avg_cookie_id
+FROM cookie;
+
+3. What is the unique number of visits by all users per month?
+SELECT 
+  EXTRACT(MONTH FROM event_time) as month, 
+  COUNT(DISTINCT visit_id) AS unique_visit_count
+FROM clique_bait.events
+GROUP BY EXTRACT(MONTH FROM event_time);
+
+4. What is the number of events for each event type?
+SELECT 
+  event_type, 
+  COUNT(*) AS event_count
+FROM clique_bait.events
+GROUP BY event_type
+ORDER BY event_type;
+
+5. What is the percentage of visits which have a purchase event?
+SELECT 
+  100 * COUNT(DISTINCT e.visit_id)/
+    (SELECT COUNT(DISTINCT visit_id) FROM clique_bait.events) AS percentage_purchase
+FROM clique_bait.events AS e
+JOIN clique_bait.event_identifier AS ei
+  ON e.event_type = ei.event_type
+WHERE ei.event_name = 'Purchase';
+
+6. What is the percentage of visits which view the checkout page but do not have a purchase event? 
+WITH checkout_purchase AS (
+SELECT 
+  visit_id,
+  MAX(CASE WHEN event_type = 1 AND page_id = 12 THEN 1 ELSE 0 END) AS checkout,
+  MAX(CASE WHEN event_type = 3 THEN 1 ELSE 0 END) AS purchase
+FROM clique_bait.events
+GROUP BY visit_id)
+
+SELECT 
+  ROUND(100 * (1-(SUM(purchase)::numeric/SUM(checkout))),2) AS percentage_checkout_view_with_no_purchase
+FROM checkout_purchase
+
+
+7. What are the top 3 pages by number of views?
+SELECT 
+  ph.page_name, 
+  COUNT(*) AS page_views
+FROM clique_bait.events AS e
+JOIN clique_bait.page_hierarchy AS ph
+  ON e.page_id = ph.page_id
+WHERE e.event_type = 1 -- "Page View"
+GROUP BY ph.page_name
+ORDER BY page_views DESC -- Order by descending to retrieve highest to lowest number of views
+LIMIT 3; -- Limit results to 3 to find the top 3
+
+8. What is the number of views and cart adds for each product category?
+SELECT 
+  ph.product_category, 
+  SUM(CASE WHEN e.event_type = 1 THEN 1 ELSE 0 END) AS page_views,
+  SUM(CASE WHEN e.event_type = 2 THEN 1 ELSE 0 END) AS cart_adds
+FROM clique_bait.events AS e
+JOIN clique_bait.page_hierarchy AS ph
+  ON e.page_id = ph.page_id
+WHERE ph.product_category IS NOT NULL
+GROUP BY ph.product_category
+ORDER BY page_views DESC;
+
+
+9. What are the top 3 products by purchases?
+SELECT 
+  ph.product_category,
+  Count(*) as purchase
+FROM clique_bait.events e 
+JOIN clique_bait.page_hierarchy AS ph ON e.page_id = ph.page_id
+WHERE e.event_type = 3
+GROUP by ph.product_category
+ORDER by purchase DESC
+LIMIT 3
+
+B. Product Funnel Analysis
+Planning Our Strategy
+WITH product_page_events AS ( -- Note 1
+  SELECT 
+    e.visit_id,
+    ph.product_id,
+    ph.page_name AS product_name,
+    ph.product_category,
+    SUM(CASE WHEN e.event_type = 1 THEN 1 ELSE 0 END) AS page_view, -- 1 for Page View
+    SUM(CASE WHEN e.event_type = 2 THEN 1 ELSE 0 END) AS cart_add -- 2 for Add Cart
+  FROM clique_bait.events AS e
+  JOIN clique_bait.page_hierarchy AS ph
+    ON e.page_id = ph.page_id
+  WHERE product_id IS NOT NULL
+  GROUP BY e.visit_id, ph.product_id, ph.page_name, ph.product_category
+),
+purchase_events AS ( -- Note 2
+  SELECT 
+    DISTINCT visit_id
+  FROM clique_bait.events
+  WHERE event_type = 3 -- 3 for Purchase
+),
+combined_table AS ( -- Note 3
+  SELECT 
+    ppe.visit_id, 
+    ppe.product_id, 
+    ppe.product_name, 
+    ppe.product_category, 
+    ppe.page_view, 
+    ppe.cart_add,
+    CASE WHEN pe.visit_id IS NOT NULL THEN 1 ELSE 0 END AS purchase
+  FROM product_page_events AS ppe
+  LEFT JOIN purchase_events AS pe
+    ON ppe.visit_id = pe.visit_id
+),
+product_category AS (
+  SELECT 
+    product_category, 
+    SUM(page_view) AS views,
+    SUM(cart_add) AS cart_adds, 
+    SUM(CASE WHEN cart_add = 1 AND purchase = 0 THEN 1 ELSE 0 END) AS abandoned,
+    SUM(CASE WHEN cart_add = 1 AND purchase = 1 THEN 1 ELSE 0 END) AS purchases
+  FROM combined_table
+  GROUP BY product_category)
+
+SELECT *
+FROM product_category
+
+1. Which product had the most views, cart adds and purchases?
+SELECT 
+    products_name, 
+    product_category, 
+    viewed + cart_adds + purchases AS most_views_cart_adds_purchases
+FROM product_info
+ORDER BY most_views_cart_adds_purchases DESC
+LIMIT 1
+
+2. Which product was most likely to be abandoned?
+SELECT 
+    products_name, 
+    product_category, 
+    abandoned
+FROM product_info
+ORDER BY abandoned
+LIMIT 1 
+
+3. Which product had the highest view to purchase percentage?
+SELECT 
+    product_name, 
+  product_category, 
+  ROUND(100 * purchases/views,2) AS purchase_per_view_percentage
+FROM product_info
+ORDER BY purchase_per_view_percentage DESC
+
+4. What is the average conversion rate from view to cart add?
+SELECT 
+    AVG(CASE WHEN viewed = 0 THEN 0 ELSE (cart_adds * 1.0 / viewed) END) AS avg_conversion_rate
+FROM product_info;
+
+5. What is the average conversion rate from cart add to purchase?
+SELECT 
+  ROUND(100*AVG(cart_adds/views),2) AS avg_view_to_cart_add_conversion,
+  ROUND(100*AVG(purchases/cart_adds),2) AS avg_cart_add_to_purchases_conversion_rate
+FROM product_info
+
